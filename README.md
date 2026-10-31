@@ -1,20 +1,20 @@
 # Light Compact AI
 
-A compact TypeScript transformer research engine with a trainable decoder-only baseline and an explicit encoder-decoder sequence-to-sequence forward path.
+A compact TypeScript language-model research engine with a trainable decoder-only baseline, an experimental encoder-decoder path, and modular modern transformer/inference primitives.
 
 ## Features
 
-- Recursive module/class/subclass/type/subtype/structure/substructure/branch/subtree registry.
-- Float32 tensor primitives and multidimensional quick, merge, heap and insertion sorts.
-- Tensor-axis sorting, argsort, reductions and top-K ranking.
-- Seeded deterministic initialization and reproducible experiment streams.
-- Trainable decoder-only transformer: embeddings, multi-head self-attention, residuals, layer normalization and GELU feed-forward blocks.
-- Reverse-mode gradients, cross-entropy, Adam optimization, gradient clipping and greedy decoding for the decoder-only baseline.
-- Encoder-decoder architecture with bidirectional source encoding, causal target self-attention and cross-attention over encoder memory.
-- Seven logical compute roles with dependency-aware task scheduling.
-- Zipformer-inspired multi-resolution temporal feature-pyramid primitives.
-- Parameter/KV-cache memory estimator and context-budget recommendation.
-- JSON checkpoints and unit tests.
+- Recursive architecture registry and seeded initialization.
+- Float32 multidimensional tensors, sorting, argsort, reductions and top-K.
+- Trainable decoder-only transformer with multi-head self-attention, LayerNorm, GELU, reverse-mode gradients, Adam and greedy decoding.
+- Encoder-decoder forward/generation reference with bidirectional source encoding, causal target self-attention and cross-attention.
+- Byte-level BPE tokenizer reference with UTF-8 round-trip support.
+- RoPE positional encoding, RMSNorm and SwiGLU primitives.
+- Grouped-query attention forward primitive.
+- Per-layer append-only KV cache and temperature/top-K/top-P/repetition-penalty sampling.
+- Seven logical compute roles with dependency-aware scheduling.
+- Zipformer-inspired multi-resolution temporal feature-pyramid operations.
+- Weight/KV memory estimator, context-budget recommendation and JSON checkpoint baseline.
 
 ## Install and verify
 
@@ -33,13 +33,8 @@ import { TransformerModel, Trainer, VocabularyTokenizer } from "./src/index.js";
 const tokenizer = new VocabularyTokenizer();
 tokenizer.fit(["the small model learns", "the model reads text"]);
 const model = new TransformerModel({
-  vocabSize: tokenizer.vocabSize,
-  maxSequenceLength: 32,
-  dModel: 32,
-  numHeads: 4,
-  dFeedForward: 64,
-  numLayers: 2,
-  seed: 7
+  vocabSize: tokenizer.vocabSize, maxSequenceLength: 32,
+  dModel: 32, numHeads: 4, dFeedForward: 64, numLayers: 2, seed: 7
 });
 const trainer = new Trainer(model, { learningRate: 1e-3 });
 const ids = tokenizer.encode("the small model learns");
@@ -47,11 +42,19 @@ console.log(trainer.trainBatch([ids.slice(0, -1)], [ids.slice(1)]));
 console.log(tokenizer.decode(model.generate(ids.slice(0, -1), 12)));
 ```
 
+## BPE tokenizer reference
+
+```ts
+import { BpeTokenizer } from "./src/index.js";
+const tokenizer = new BpeTokenizer(512).train(["small language models", "language model training"]);
+const tokens = tokenizer.encode("language models", true, true);
+console.log(tokenizer.decode(tokens));
+```
+
 ## Encoder-decoder forward pass
 
 ```ts
 import { EncoderDecoderTransformer } from "./src/index.js";
-
 const model = new EncoderDecoderTransformer({
   vocabSize: 256, maxSourceLength: 512, maxTargetLength: 512,
   dModel: 128, numHeads: 4, dFeedForward: 512,
@@ -60,18 +63,16 @@ const model = new EncoderDecoderTransformer({
 const logits = model.forward([1, 8, 9], [1, 12]);
 ```
 
-The encoder processes the source sequence bidirectionally. The decoder uses causal self-attention and cross-attends to the encoder memory. See [encoder-decoder architecture](docs/ENCODER-DECODER-ARCHITECTURE.md).
+## Architecture and implementation status
 
-## Seven-node logical scheduler
+The decoder-only `TransformerModel` remains the trainable baseline. The encoder-decoder class currently provides forward inference and greedy generation, but is not yet connected to the existing Trainer's complete backpropagation pipeline.
 
-The seven roles are tokenizer, embedding, attention, feed-forward, sampling, memory and coordinator. They are logical workers scheduled within one process; this does not create seven physical machines or guarantee parallel speedup. Transformer layer dependencies remain sequential.
+The new BPE, RoPE, RMSNorm, SwiGLU, grouped-query attention and KV-cache modules are exposed as reusable primitives. They are not all integrated into the main model yet; the current GQA implementation is forward-only. The BPE trainer is a correctness-first in-memory reference, not a production-scale corpus trainer.
 
-## Zipformer-inspired multi-resolution path
+The seven-node scheduler represents logical roles in one process, not seven physical machines. The Zipformer-inspired temporal pyramid is not a complete Zipformer and is not yet trained or connected to causal decoding.
 
-The temporal feature pyramid accepts `[batch, sequence, channels]` tensors and performs weighted downsampling, upsampling and gated residual merging. It is an experimental feature-processing primitive, not a complete Zipformer and not currently integrated into causal token decoding. See the implementation notes in the source and tests.
+## Engineering limits
 
-## Important limitations
+This is CPU Float32 research code. It does not yet provide production BPE performance, GPU kernels, mixed precision, quantized model execution, paged KV allocation, distributed multi-host training, continuous batching or speculative decoding. A randomly initialized model is not a pretrained assistant. Claims about speed, memory or quality require reproducible benchmarks on named hardware and datasets.
 
-The decoder-only `TransformerModel` is the trainable baseline. The new encoder-decoder class currently provides a forward-pass/generation reference and is **not yet connected to the existing Trainer's gradient pipeline**. The Zipformer-inspired path is not yet trained or integrated into either transformer. The project is CPU Float32 research code: it does not yet provide GPU kernels, mixed-precision execution, production BPE/unigram tokenization, distributed multi-host execution, or a production dataset pipeline.
-
-A randomly initialized model is not a pretrained assistant. Useful language modeling requires appropriately licensed training data, complete training/evaluation pipelines and measured quality/performance benchmarks. Memory estimates are planning estimates, not measured resident-memory guarantees.
+See [feature research and trade-offs](docs/FEATURE-RESEARCH-AND-TRADEOFFS.md), [roadmap](docs/ROADMAP.md), and [encoder-decoder architecture](docs/ENCODER-DECODER-ARCHITECTURE.md).

@@ -17,3 +17,7 @@ jobs:
       - run: npm install --no-audit --no-fund
       - run: npm run build
       - run: npm test
+      - name: Train smoke test
+        run: node dist/cli/train.js
+        env:
+          EPOCHS: "3"

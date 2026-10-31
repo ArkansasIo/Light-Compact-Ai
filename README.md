@@ -25,6 +25,75 @@ npm test
 npm run example
 ```
 
+## Compact AI: train, chat, serve
+
+```sh
+npm run train   # train on data/corpus.txt, save models/compact.checkpoint.json
+npm run chat    # terminal chat UI (type /help inside)
+npm start       # HTTP server on port 3000
+```
+
+Teach it new things by adding lines to `data/corpus.txt` (one sample per line, `#` for comments) and running `npm run train` again.
+
+Server API:
+
+```sh
+curl localhost:3000/health
+curl localhost:3000/generate -d '{"prompt":"the dog","maxTokens":10}'
+# {"prompt":"the dog","maxTokens":10,"output":"slept by the door."}
+```
+
+### Configuration
+
+Settings are read from `compact.config.json`, then overridden by environment variables (all listed in `.env.example`):
+
+| Setting | Config key | Env var | Default |
+|---|---|---|---|
+| Hidden size | `model.dModel` | | 32 |
+| Attention heads | `model.numHeads` | | 4 |
+| Feed-forward size | `model.dFeedForward` | | 64 |
+| Layers | `model.numLayers` | | 2 |
+| Context length | `model.maxSequenceLength` | | 32 |
+| Corpus file | `training.corpus` | `CORPUS` | `data/corpus.txt` |
+| Training epochs | `training.epochs` | `EPOCHS` | 40 |
+| Learning rate | `training.learningRate` | `LCAI_LEARNING_RATE` | 0.003 |
+| Model file | `training.output` | `MODEL_PATH` | `models/compact.checkpoint.json` |
+| Reply length | `generation.maxTokens` | `LCAI_MAX_TOKENS` | 24 |
+| Server port | `server.port` | `PORT` | 3000 |
+| Startup epochs (no saved model) | `server.startupEpochs` | `LCAI_STARTUP_EPOCHS` | 15 |
+
+Use a different config file with `LCAI_CONFIG=path/to/file.json`. To load a `.env` file: `node --env-file=.env dist/server.js`.
+
+### Settings and options
+
+Type `/settings` (or `/config`) in `npm run chat` to open the settings panel: ↑↓ to select, ←→ to change, `r` to reset, Esc to close. Changes apply immediately and are saved to `.lcai/settings.json` (override with `LCAI_SETTINGS`). You can also set one value directly, e.g. `/settings temperature 0.8`.
+
+| Setting | Key | Range | Default | Effect |
+|---|---|---|---|---|
+| Temperature | `temperature` | 0–2 | 0 | 0 always picks the most likely word; higher is more random |
+| Top-k | `topK` | 0–100 | 0 (off) | Choose only among the k most likely words |
+| Top-p | `topP` | 0.05–1 | 1 (off) | Choose among the top words reaching this total probability |
+| Repetition penalty | `repetitionPenalty` | 1–2 | 1 (off) | Discourage recently used words |
+| Max reply length | `maxTokens` | 1–256 | 24 | Most words per reply |
+| Streaming speed | `streamDelayMs` | 0–200 | 30 | Pause between streamed words (0 = instant) |
+| Show reply stats | `showStats` | on/off | on | Token count and time under replies |
+| Theme | `theme` | teal, orange, blue, purple, mono | teal | Accent color |
+
+Top-k, top-p and repetition penalty only matter when temperature is above 0. The HTTP API accepts the same generation options:
+
+```sh
+curl localhost:3000/generate -d '{"prompt":"the dog","temperature":0.8,"topK":10}'
+```
+
+### Docker
+
+```sh
+docker build -t light-compact-ai .
+docker run -p 3000:3000 light-compact-ai
+```
+
+The image trains the model during the build, so the container starts serving immediately.
+
 ## Decoder-only training quick start
 
 ```ts

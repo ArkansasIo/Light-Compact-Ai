@@ -1,0 +1,23 @@
+{
+  "model": {
+    "dModel": 32,
+    "numHeads": 4,
+    "dFeedForward": 64,
+    "numLayers": 2,
+    "maxSequenceLength": 32,
+    "seed": 7
+  },
+  "training": {
+    "corpus": "data/corpus.txt",
+    "epochs": 40,
+    "learningRate": 0.003,
+    "output": "models/compact.checkpoint.json"
+  },
+  "generation": {
+    "maxTokens": 24
+  },
+  "server": {
+    "port": 3000,
+    "startupEpochs": 15
+  }
+}

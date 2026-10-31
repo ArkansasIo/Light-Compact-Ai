@@ -6,13 +6,38 @@
   "description": "Compact TypeScript language model with modern transformer and inference research primitives",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
-  "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" } },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "data",
+    "compact.config.json",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
+    "clean": "node -e \"for (const d of ['dist','models']) require('node:fs').rmSync(d,{recursive:true,force:true})\"",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "format": "prettier --write \"src/**/*.ts\" \"*.json\"",
+    "format:check": "prettier --check \"src/**/*.ts\" \"*.json\"",
     "test": "npm run build && node --test dist/tests/*.test.js",
-    "example": "npm run build && node dist/examples/train-toy.js"
+    "example": "npm run build && node dist/examples/train-toy.js",
+    "start": "npm run build && node dist/server.js",
+    "train": "npm run build && node dist/cli/train.js",
+    "chat": "npm run build && node dist/cli/chat.js"
   },
-  "devDependencies": { "@types/node": "^22.10.0", "typescript": "^5.7.2" },
-  "engines": { "node": ">=20" },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "prettier": "^3.3.3",
+    "typescript": "^5.7.2"
+  },
+  "engines": {
+    "node": ">=20"
+  },
   "license": "MIT"
 }

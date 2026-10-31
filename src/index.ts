@@ -27,3 +27,5 @@ export * from "./cache/mysql-greeting-cache-store.js";
 export * from "./algorithms/multidimensional.js";
 export * from "./cluster/seven-node-system.js";
 export * from "./seed/seed-system.js";
+export * from "./compact/bundle.js";
+export * from "./config/compact-config.js";

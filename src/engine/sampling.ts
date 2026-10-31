@@ -1,2 +1,66 @@
-export interface SamplingOptions{temperature?:number;topK?:number;topP?:number;repetitionPenalty?:number;repetitionWindow?:number;seed?:number;}
-export function sampleLogits(logits:number[],options:SamplingOptions={},history:number[]=[]):number{if(!logits.length||logits.some(x=>!Number.isFinite(x)))throw new Error("Logits must be a non-empty finite vector.");const temp=options.temperature??1;if(temp<0)throw new Error("temperature must be non-negative.");if(temp===0)return logits.reduce((best,v,i)=>v>logits[best]!?i:best,0);const penalty=options.repetitionPenalty??1;if(penalty<=0)throw new Error("repetitionPenalty must be positive.");const adjusted=logits.map((v,i)=>history.slice(-(options.repetitionWindow??64)).includes(i)?(v<0?v*penalty:v/penalty):v),ranked=adjusted.map((v,i)=>({i,v:v/temp})).sort((a,b)=>b.v-a.v);const topK=Math.max(1,Math.min(ranked.length,options.topK??ranked.length)),k=ranked.slice(0,topK),max=k[0]!.v,probs=k.map(x=>Math.exp(x.v-max)),sum=probs.reduce((a,b)=>a+b,0);let candidates=k.map((x,i)=>({id:x.i,p:probs[i]!/sum}));const topP=options.topP??1;if(topP<=0||topP>1)throw new Error("topP must be in (0,1].");if(topP<1){let cumulative=0,n=0;for(const c of candidates){cumulative+=c.p;n++;if(cumulative>=topP)break;}candidates=candidates.slice(0,Math.max(1,n));const z=candidates.reduce((a,c)=>a+c.p,0);candidates=candidates.map(c=>({...c,p:c.p/z}));}let seed=(options.seed??Date.now())>>>0;seed=seed||1;seed^=seed<<13;seed^=seed>>>17;seed^=seed<<5;let r=(seed>>>0)/4294967296;for(const c of candidates){r-=c.p;if(r<=0)return c.id;}return candidates[candidates.length-1]!.id;}
+export interface SamplingOptions {
+  temperature?: number;
+  topK?: number;
+  topP?: number;
+  repetitionPenalty?: number;
+  repetitionWindow?: number;
+  seed?: number;
+}
+export function sampleLogits(
+  logits: number[],
+  options: SamplingOptions = {},
+  history: number[] = [],
+): number {
+  if (!logits.length || logits.some((x) => !Number.isFinite(x)))
+    throw new Error("Logits must be a non-empty finite vector.");
+  const temp = options.temperature ?? 1;
+  if (temp < 0) throw new Error("temperature must be non-negative.");
+  if (temp === 0)
+    return logits.reduce((best, v, i) => (v > logits[best]! ? i : best), 0);
+  const penalty = options.repetitionPenalty ?? 1;
+  if (penalty <= 0) throw new Error("repetitionPenalty must be positive.");
+  const adjusted = logits.map((v, i) =>
+      history.slice(-(options.repetitionWindow ?? 64)).includes(i)
+        ? v < 0
+          ? v * penalty
+          : v / penalty
+        : v,
+    ),
+    ranked = adjusted
+      .map((v, i) => ({ i, v: v / temp }))
+      .sort((a, b) => b.v - a.v);
+  const topK = Math.max(
+      1,
+      Math.min(ranked.length, options.topK ?? ranked.length),
+    ),
+    k = ranked.slice(0, topK),
+    max = k[0]!.v,
+    probs = k.map((x) => Math.exp(x.v - max)),
+    sum = probs.reduce((a, b) => a + b, 0);
+  let candidates = k.map((x, i) => ({ id: x.i, p: probs[i]! / sum }));
+  const topP = options.topP ?? 1;
+  if (topP <= 0 || topP > 1) throw new Error("topP must be in (0,1].");
+  if (topP < 1) {
+    let cumulative = 0,
+      n = 0;
+    for (const c of candidates) {
+      cumulative += c.p;
+      n++;
+      if (cumulative >= topP) break;
+    }
+    candidates = candidates.slice(0, Math.max(1, n));
+    const z = candidates.reduce((a, c) => a + c.p, 0);
+    candidates = candidates.map((c) => ({ ...c, p: c.p / z }));
+  }
+  let seed = (options.seed ?? Date.now()) >>> 0;
+  seed = seed || 1;
+  seed ^= seed << 13;
+  seed ^= seed >>> 17;
+  seed ^= seed << 5;
+  let r = (seed >>> 0) / 4294967296;
+  for (const c of candidates) {
+    r -= c.p;
+    if (r <= 0) return c.id;
+  }
+  return candidates[candidates.length - 1]!.id;
+}

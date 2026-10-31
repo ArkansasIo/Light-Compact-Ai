@@ -1,0 +1,15 @@
+# One training sample per line. Lines starting with # are ignored.
+hello, i am a compact ai.
+hello! how can i help you today?
+i am a small language model written in typescript.
+i run on your own computer without a gpu.
+i learn from the text in the corpus file.
+a small model can learn simple patterns.
+the cat sat on the mat.
+the dog slept by the door.
+the sun is bright today.
+the moon is quiet at night.
+training makes the model better at guessing the next word.
+add more lines to this file to teach me new things.
+thank you for talking with me.
+goodbye, see you soon.

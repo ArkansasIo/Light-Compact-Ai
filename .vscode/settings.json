@@ -1,0 +1,10 @@
+{
+  "typescript.tsdk": "node_modules/typescript/lib",
+  "editor.tabSize": 2,
+  "files.eol": "\n",
+  "search.exclude": {
+    "dist": true,
+    "models": true,
+    "node_modules": true
+  }
+}

@@ -1,6 +1,86 @@
-import {Tensor} from "./tensor.js";
-export function downsampleSequence(input:Tensor,factor:number,weights?:Float32Array):Tensor{if(input.rank!==3)throw new Error("Expected [batch,sequence,channels].");if(!Number.isInteger(factor)||factor<1)throw new Error("factor must be >=1.");if(weights&&weights.length!==factor)throw new Error("weights length must equal factor.");const [b,s,c]=input.shape,n=Math.ceil(s!/factor),out=Tensor.zeros([b!,n,c!]);let w=weights?Array.from(weights):Array(factor).fill(1);const m=Math.max(...w);w=w.map(x=>Math.exp(x-m));const z=w.reduce((a,x)=>a+x,0);w=w.map(x=>x/z);for(let bi=0;bi<b!;bi++)for(let t=0;t<n;t++)for(let ch=0;ch<c!;ch++){let v=0;for(let j=0;j<factor;j++){const at=t*factor+j;if(at<s!)v+=input.get(bi,at,ch)*w[j]!;}out.set(v,bi,t,ch);}return out;}
-export function upsampleSequence(input:Tensor,targetLength:number):Tensor{if(input.rank!==3||!Number.isInteger(targetLength)||targetLength<1)throw new Error("Invalid upsample shape.");const [b,s,c]=input.shape,out=Tensor.zeros([b!,targetLength,c!]);for(let bi=0;bi<b!;bi++)for(let t=0;t<targetLength;t++)for(let ch=0;ch<c!;ch++)out.set(input.get(bi,Math.min(s!-1,Math.floor(t*s!/targetLength)),ch),bi,t,ch);return out;}
-export function gatedResidualMerge(original:Tensor,coarse:Tensor,gate=0.5):Tensor{if(original.rank!==3||coarse.rank!==3||original.shape.some((d,i)=>d!==coarse.shape[i]))throw new Error("Residual tensors must have equal [B,S,C] shapes.");const g=Math.max(0,Math.min(1,gate)),out=Tensor.zeros(original.shape);for(let i=0;i<out.size;i++)out.data[i]=original.data[i]!*(1-g)+coarse.data[i]!*g;return out;}
+import { Tensor } from "./tensor.js";
+export function downsampleSequence(
+  input: Tensor,
+  factor: number,
+  weights?: Float32Array,
+): Tensor {
+  if (input.rank !== 3) throw new Error("Expected [batch,sequence,channels].");
+  if (!Number.isInteger(factor) || factor < 1)
+    throw new Error("factor must be >=1.");
+  if (weights && weights.length !== factor)
+    throw new Error("weights length must equal factor.");
+  const [b, s, c] = input.shape,
+    n = Math.ceil(s! / factor),
+    out = Tensor.zeros([b!, n, c!]);
+  let w = weights ? Array.from(weights) : Array(factor).fill(1);
+  const m = Math.max(...w);
+  w = w.map((x) => Math.exp(x - m));
+  const z = w.reduce((a, x) => a + x, 0);
+  w = w.map((x) => x / z);
+  for (let bi = 0; bi < b!; bi++)
+    for (let t = 0; t < n; t++)
+      for (let ch = 0; ch < c!; ch++) {
+        let v = 0;
+        for (let j = 0; j < factor; j++) {
+          const at = t * factor + j;
+          if (at < s!) v += input.get(bi, at, ch) * w[j]!;
+        }
+        out.set(v, bi, t, ch);
+      }
+  return out;
+}
+export function upsampleSequence(input: Tensor, targetLength: number): Tensor {
+  if (input.rank !== 3 || !Number.isInteger(targetLength) || targetLength < 1)
+    throw new Error("Invalid upsample shape.");
+  const [b, s, c] = input.shape,
+    out = Tensor.zeros([b!, targetLength, c!]);
+  for (let bi = 0; bi < b!; bi++)
+    for (let t = 0; t < targetLength; t++)
+      for (let ch = 0; ch < c!; ch++)
+        out.set(
+          input.get(
+            bi,
+            Math.min(s! - 1, Math.floor((t * s!) / targetLength)),
+            ch,
+          ),
+          bi,
+          t,
+          ch,
+        );
+  return out;
+}
+export function gatedResidualMerge(
+  original: Tensor,
+  coarse: Tensor,
+  gate = 0.5,
+): Tensor {
+  if (
+    original.rank !== 3 ||
+    coarse.rank !== 3 ||
+    original.shape.some((d, i) => d !== coarse.shape[i])
+  )
+    throw new Error("Residual tensors must have equal [B,S,C] shapes.");
+  const g = Math.max(0, Math.min(1, gate)),
+    out = Tensor.zeros(original.shape);
+  for (let i = 0; i < out.size; i++)
+    out.data[i] = original.data[i]! * (1 - g) + coarse.data[i]! * g;
+  return out;
+}
 /** Non-causal Zipformer-inspired feature pyramid; not wired into causal decoding. */
-export function multiresolutionZip(input:Tensor,scales:number[],gate=0.35):Tensor{if(input.rank!==3)throw new Error("Expected [batch,sequence,channels].");let state=input.clone();for(const factor of scales){if(factor<=1)continue;state=gatedResidualMerge(state,upsampleSequence(downsampleSequence(state,factor),state.shape[1]!),gate);}return state;}
+export function multiresolutionZip(
+  input: Tensor,
+  scales: number[],
+  gate = 0.35,
+): Tensor {
+  if (input.rank !== 3) throw new Error("Expected [batch,sequence,channels].");
+  let state = input.clone();
+  for (const factor of scales) {
+    if (factor <= 1) continue;
+    state = gatedResidualMerge(
+      state,
+      upsampleSequence(downsampleSequence(state, factor), state.shape[1]!),
+      gate,
+    );
+  }
+  return state;
+}

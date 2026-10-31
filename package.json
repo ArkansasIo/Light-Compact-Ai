@@ -1,9 +1,9 @@
 {
   "name": "light-compact-ai",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": false,
   "type": "module",
-  "description": "Compact trainable TypeScript transformer with encoder-decoder and multi-node research extensions",
+  "description": "Compact TypeScript language model with modern transformer and inference research primitives",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" } },

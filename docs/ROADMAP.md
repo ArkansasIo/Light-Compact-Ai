@@ -1,25 +1,56 @@
 # Engineering roadmap
 
-## Landed in 0.2.0
+## Implemented research components
 
-- Existing trainable decoder-only transformer retained as the baseline.
-- Added Float32 multidimensional tensor storage and axis algorithms.
-- Added seven-role logical task scheduler with dependency graph execution.
-- Added seeded deterministic PRNG utilities.
-- Added model weight/KV-cache memory estimator and context-budget recommendation.
-- Added Zipformer-inspired multi-resolution temporal feature primitive.
-- Added an explicit encoder-decoder forward/generation reference with source encoder, causal target self-attention and encoder cross-attention.
-- Added tests for new algorithms, scheduler, memory estimator, multi-resolution shape handling and encoder-decoder output shapes.
-- Added GitHub Actions build/test workflow.
+- Trainable decoder-only transformer baseline and existing Adam training path.
+- Encoder-decoder forward/generation reference with source encoder, causal target self-attention and cross-attention.
+- Byte-level BPE tokenizer reference and serializable merge state.
+- RoPE, RMSNorm with local backward function, SwiGLU with local backward function.
+- Grouped-query attention forward primitive.
+- Per-layer append-only KV cache and configurable sampling.
+- Multidimensional tensor algorithms, seven-role logical scheduler, seeded PRNG, memory estimator and Zipformer-inspired multi-resolution primitive.
+- CI workflow and modular primitive tests.
 
-## Next engineering milestones
+## Priority 1 — correctness and integration
 
-1. Run CI and fix any compile/test regressions.
-2. Add padding masks and batched source/target inputs to encoder-decoder.
-3. Implement and gradient-check encoder, cross-attention and decoder backpropagation; connect the result to Trainer and checkpoint APIs.
-4. Add causal/streaming-safe multi-resolution blocks and train them against the decoder-only baseline.
-5. Add optimized top-K/top-P selection and benchmark tensor kernels.
-6. Add tokenizer training (BPE or unigram), dataset streaming, validation splits and reproducible training manifests.
-7. Add KV-cache integration and incremental decoding.
-8. Benchmark CPU memory, tokens/second, latency, perplexity and model quality on fixed datasets before setting hardware claims.
-9. Design a real multi-process/distributed backend only after the logical scheduler has measurable workload benefits.
+1. Run strict TypeScript build and the full test suite; repair all errors before adding more model features.
+2. Integrate BPE vocabulary IDs with model construction and checkpoint save/load.
+3. Integrate RoPE into query/key projection and add positional tests across multiple heads.
+4. Add RMSNorm and SwiGLU as configurable transformer-block options.
+5. Integrate GQA into the causal model and implement/gradient-check its backward pass.
+6. Integrate KV cache into incremental one-token decoding and prove cached logits match uncached logits within numerical tolerance.
+7. Complete encoder-decoder backpropagation, padding masks, batching and checkpoint support.
+
+## Priority 2 — training quality
+
+1. Add AdamW and compare with existing Adam on identical data/seeds.
+2. Add dataset streaming, deterministic shuffling, train/validation splits and manifests.
+3. Add gradient accumulation, clipping metrics, learning-rate schedules and checkpoint resume.
+4. Track validation cross-entropy/perplexity, tokens/second and gradient norms.
+5. Add tokenizer coverage and compression-ratio reports.
+
+## Priority 3 — efficient inference
+
+1. Benchmark matrix multiplication and optimize typed-array CPU kernels.
+2. Add Q8 and Q4 offline quantization experiments with quality/perplexity comparisons.
+3. Add a block-allocated paged KV cache and request-aware scheduler.
+4. Add continuous batching, cancellation, request fairness and cache eviction.
+5. Evaluate speculative decoding with a compact draft model.
+6. Build a WebGPU backend and compare with CPU reference.
+
+## Priority 4 — advanced research
+
+1. Evaluate Zipformer-inspired multi-resolution features against the standard baseline; do not assume they improve text generation.
+2. Evaluate FlashAttention-style tiled attention where the backend can exploit GPU memory hierarchy.
+3. Add retrieval-augmented generation as a separately testable document subsystem.
+4. Explore mixture-of-experts only after dense-model baselines and routing metrics are stable.
+5. Implement true multi-process or multi-device execution only after logical scheduler profiling identifies independent work.
+
+## Acceptance gates
+
+- Every component has unit tests and shape/error-path coverage.
+- Training changes pass finite-difference gradient checks on small models.
+- Cache and uncached generation produce matching logits within a documented tolerance.
+- Performance claims include hardware, model dimensions, context length, batch size, warm-up, repetitions and measured variance.
+- Quality claims include held-out data and reproducible evaluation.
+- CPU-only operation remains available as a correctness reference.

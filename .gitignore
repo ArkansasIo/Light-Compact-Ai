@@ -9,3 +9,4 @@ coverage/
 models/
 .lcai/
 *.checkpoint.json
+songs/

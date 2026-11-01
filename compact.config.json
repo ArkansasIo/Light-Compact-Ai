@@ -19,5 +19,23 @@
   "server": {
     "port": 3000,
     "startupEpochs": 15
+  },
+  "voice": {
+    "preset": "aurora",
+    "provider": "elevenlabs",
+    "fallback": true,
+    "maxChars": 1000,
+    "elevenlabs": {
+      "settings": {
+        "stability": 0.35,
+        "similarity_boost": 0.8,
+        "style": 0.4,
+        "speed": 0.92
+      }
+    },
+    "playht": {
+      "speed": 0.9,
+      "temperature": 0.7
+    }
   }
 }

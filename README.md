@@ -85,6 +85,63 @@ Top-k, top-p and repetition penalty only matter when temperature is above 0. The
 curl localhost:3000/generate -d '{"prompt":"the dog","temperature":0.8,"topK":10}'
 ```
 
+### Voice (Aurora)
+
+Replies can be spoken with the **Aurora** preset: a soft, airy, calm voice built from
+stock provider voices and expressive settings (it is a style, not a copy of any real
+person's voice). Providers are tried in order **ElevenLabs → OpenAI → Azure Speech → Play.ht**,
+skipping any without keys (Play.ht's API host stopped resolving in 2025, so it is last).
+
+| Provider | `.env` keys | Aurora voice |
+| --- | --- | --- |
+| ElevenLabs | `ELEVENLABS_API_KEY` | stock "Lily", expressive settings |
+| OpenAI | `OPENAI_API_KEY` | `shimmer` on `gpt-4o-mini-tts` with a soft, airy style prompt |
+| Azure Speech | `AZURE_SPEECH_KEY`, `AZURE_SPEECH_REGION` | `en-US-AvaNeural`, slightly slower and higher |
+| Play.ht | `PLAYHT_API_KEY`, `PLAYHT_USER_ID` | stock "Jennifer" |
+
+1. Copy `.env.example` to `.env` and set the keys for at least one provider.
+2. In `npm run chat`: `/voice` shows status, `/voice on` speaks every reply, `/voice test` plays a sample, Esc stops speech. `/settings` has "Speak replies" and "Voice provider".
+3. On the server: `GET /voice` for status, `POST /speak` for MP3 audio:
+
+```sh
+curl localhost:3000/speak -d '{"text":"Hello, I am Aurora."}' -o hello.mp3
+curl localhost:3000/speak -d '{"prompt":"hello"}' -o reply.mp3   # answer, then speak
+```
+
+Tune the voice in the `voice` section of `compact.config.json`, or set `ELEVENLABS_VOICE_ID`,
+`OPENAI_TTS_VOICE`, `AZURE_SPEECH_VOICE` or `PLAYHT_VOICE_ID` to another voice. Playback uses PowerShell on Windows, `afplay` on
+macOS, and ffplay/mpg123/mpv on Linux (or `LCAI_AUDIO_PLAYER`).
+
+### Musical mode: compose and sing
+
+Turn a prompt into an original song: lyrics, melody, chords, harmonies and accompaniment,
+rendered on one shared beat clock, mixed, saved and played.
+
+```sh
+npm run sing -- "Create a gentle, original fairytale song."
+npm run sing -- "a happy celtic duet about the sea" --voice ethereal-elven-princess,gentle-baritone
+npm run sing -- "a jazz ballad" --lyrics my-lyrics.txt --key "Bb major" --tempo 84
+npm run sing -- --load songs/<name>/song.json     # re-render a saved arrangement
+npm run sing -- --list                            # styles and voice profiles
+```
+
+In chat: `/sing a lullaby about the moon` (uses the "Voice profile" from `/settings`). Server:
+`POST /compose` returns the arrangement as JSON; `POST /sing` returns the mixed WAV.
+
+Each song is saved to `songs/<title>-<seed>/`: `song.json` (the full arrangement, re-renderable),
+`song.mid` (MIDI with lyrics, for any DAW/SoundFont), `mix.wav`, `vocals.wav`, `accompaniment.wav`
+(`--stems` adds one WAV per track). The same prompt and seed always give the same song.
+
+| Part | What it does |
+| --- | --- |
+| Styles | fairytale, musical-theatre, classical, celtic (3/4), pop, jazz (swing, 7th chords), choral, cinematic, ambient, picked from the prompt or `--style` |
+| Voices | 12 original profiles (`src/profiles/voices.ts`): Aurora, Fairytale Soprano, Ethereal Elven Princess, Warm Contralto, Bright Tenor, ... with separate singing range, speaking pitch, timbre, vibrato and articulation. Add your own in `.lcai/voices/*.json` (`"extends": "aurora"`). |
+| Instruments | piano, harp, strings, bass, bells, synth pad, drums and choir, all synthesized in code (no sample libraries or licensing) |
+| Vocals | the built-in **formant guide vocal** sings the right notes, vowels and timing, but it sounds clearly synthetic. It sits behind a `SingingProvider` interface (`src/singing/formant.ts`) so a licensed singing-synthesis engine can be plugged in |
+
+Lyrics are generated from original line banks written for this project, or supplied by you;
+`song.json` records their provenance.
+
 ### Docker
 
 ```sh

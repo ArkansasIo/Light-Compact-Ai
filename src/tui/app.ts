@@ -50,6 +50,29 @@ import {
   type CompactBundle,
 } from "../compact/bundle.js";
 import type { CompactConfig } from "../config/compact-config.js";
+import {
+  describeVoice,
+  isVoiceProvider,
+  providerLabel,
+  synthesize,
+  VOICE_PROVIDERS,
+  type VoiceConfig,
+  type VoiceProviderName,
+} from "../voice/voice.js";
+import { AudioPlayer } from "../voice/player.js";
+import { encodeWav } from "../audio/wav.js";
+import {
+  createSong,
+  describeSong,
+  renderSong,
+  saveSong,
+} from "../musical-mode/song.js";
+import {
+  applyVoiceProfile,
+  BUILTIN_VOICE_PROFILES,
+  findVoiceProfile,
+  type VoiceProfile,
+} from "../profiles/voices.js";
 
 const SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
 const SPINNER_INTERVAL_MS = 80;
@@ -76,11 +99,18 @@ export interface ChatAppOptions {
   settings: UserSettings;
   /** Where /settings saves changes. */
   settingsPath: string;
+  /** Text-to-speech settings and API keys (from .env). */
+  voice: VoiceConfig;
+  /** Voice profiles for speech and /sing (built-ins plus .lcai/voices). */
+  profiles?: readonly VoiceProfile[];
 }
 
 export class ChatApp {
   private readonly out = process.stdout;
   private readonly editor = new LineEditor();
+  private readonly player = new AudioPlayer();
+  /** Bumped for every new utterance so stale audio is not played. */
+  private speechId = 0;
   private bundle: CompactBundle | undefined;
   private settings: UserSettings;
 
@@ -589,6 +619,7 @@ export class ChatApp {
       case "escape":
         this.showShortcuts = false;
         this.editor.clear();
+        this.stopSpeaking();
         break;
       default: {
         if (!str || key.meta) return;
@@ -699,7 +730,170 @@ export class ChatApp {
           "",
         ].join("\n"),
       );
+      if (this.settings.voice && text && !this.aborted) this.speak(text);
     });
+  }
+
+  // ---------------------------------------------------------------- voice
+
+  /** Speak text in the background; errors are printed, never thrown. */
+  private speak(text: string): void {
+    const id = ++this.speechId;
+    this.player.stop();
+    const profile = this.voiceProfile();
+    const voice = profile
+      ? applyVoiceProfile(this.options.voice, profile)
+      : this.options.voice;
+    synthesize(text, voice, {
+      provider: this.settings.voiceProvider,
+    })
+      .then((result) => {
+        if (id !== this.speechId) return; // a newer reply or esc replaced this one
+        if (result.provider !== this.settings.voiceProvider) {
+          this.print(
+            c.gray(
+              `  ⎿  voice: using ${providerLabel(result.provider)} (${providerLabel(this.settings.voiceProvider)} unavailable)\n`,
+            ),
+          );
+        }
+        return this.player.play(result.audio);
+      })
+      .catch((err: unknown) => {
+        if (id !== this.speechId) return;
+        this.print(
+          c.red(
+            `  Voice: ${err instanceof Error ? err.message : String(err)}\n`,
+          ),
+        );
+      });
+  }
+
+  private stopSpeaking(): void {
+    this.speechId++;
+    this.player.stop();
+  }
+
+  private get profiles(): readonly VoiceProfile[] {
+    return this.options.profiles ?? BUILTIN_VOICE_PROFILES;
+  }
+
+  private voiceProfile(): VoiceProfile | undefined {
+    return findVoiceProfile(this.settings.voiceProfile, this.profiles);
+  }
+
+  // ---------------------------------------------------------------- musical mode
+
+  /** /sing <idea>: compose an original song, render it, save it, and play it. */
+  private async sing(idea: string): Promise<void> {
+    const prompt = idea.trim();
+    if (!prompt) {
+      this.print(
+        c.red(
+          "  Usage: /sing <idea>, e.g. /sing a gentle fairytale song about the moon\n",
+        ),
+      );
+      return;
+    }
+    await this.runBusy("Composing…", async () => {
+      const started = Date.now();
+      const song = createSong(
+        { prompt, voices: [this.settings.voiceProfile] },
+        this.profiles,
+      );
+      this.print(
+        [
+          `${c.accent("♪")} ${c.bold(song.title)}`,
+          ...describeSong(song, this.profiles).map((l) => c.gray(`  ${l}`)),
+          ...song.lyrics.flatMap((s) => [
+            "",
+            c.gray(`  [${s.kind}]`),
+            ...s.lines.map((l) => `  ${l}`),
+          ]),
+          "",
+        ].join("\n"),
+      );
+      await sleep(0);
+      const rendered = await renderSong(song, {
+        profiles: this.profiles,
+        onProgress: (done, total, track) => {
+          this.spinnerText = `Rendering ${Math.min(done + 1, total)}/${total} · ${track}`;
+          this.refresh(); // rendering blocks the event loop, so redraw directly
+        },
+      });
+      const saved = saveSong(song, rendered);
+      if (this.aborted) return;
+      const seconds = ((Date.now() - started) / 1000).toFixed(1);
+      this.print(
+        c.gray(
+          `  ⎿  ${rendered.durationSec.toFixed(0)}s song in ${seconds}s · saved to ${saved.dir} · guide vocal (synthetic) · esc stops playback\n`,
+        ),
+      );
+      const id = ++this.speechId;
+      this.player
+        .play(encodeWav(rendered.mix, rendered.sampleRate), "wav")
+        .catch((err: unknown) => {
+          if (id !== this.speechId) return;
+          this.print(
+            c.red(
+              `  Playback: ${err instanceof Error ? err.message : String(err)}\n`,
+            ),
+          );
+        });
+    });
+  }
+
+  private voiceCommand(arg: string | undefined): void {
+    const value = arg?.toLowerCase();
+    if (value === "on" || value === "off") {
+      this.applySettings({ ...this.settings, voice: value === "on" });
+      if (value === "off") this.stopSpeaking();
+      this.print(c.green(`  Voice ${value}.\n`));
+      return;
+    }
+    if (isVoiceProvider(value)) {
+      this.applySettings({ ...this.settings, voiceProvider: value });
+      this.print(c.green(`  Voice provider set to ${providerLabel(value)}.\n`));
+      return;
+    }
+    if (value === "test") {
+      this.print(c.gray("  Speaking a test line…\n"));
+      this.speak("Hello. I am Aurora, the voice of your compact AI.");
+      return;
+    }
+    if (value === "stop") {
+      this.stopSpeaking();
+      return;
+    }
+    if (value !== undefined) {
+      this.print(
+        c.red(
+          `  Usage: /voice [on|off|test|stop|${VOICE_PROVIDERS.join("|")}]\n`,
+        ),
+      );
+      return;
+    }
+
+    const status = describeVoice(this.options.voice);
+    const row = (name: string, shown: string) =>
+      `    ${c.gray(name.padEnd(14))} ${shown}`;
+    const ready = (name: VoiceProviderName) => {
+      const p = status.providers[name];
+      return p.ready ? c.green("ready") : c.yellow(p.reason ?? "not ready");
+    };
+    this.print(
+      [
+        c.bold("  Voice"),
+        "",
+        row("speak replies", this.settings.voice ? c.green("on") : "off"),
+        row("preset", status.preset),
+        row("first choice", providerLabel(this.settings.voiceProvider)),
+        row("fallback", status.fallback ? "on" : "off"),
+        ...VOICE_PROVIDERS.map((p) => row(providerLabel(p), ready(p))),
+        "",
+        c.gray("  Keys go in .env (see .env.example). /voice on to start."),
+        "",
+      ].join("\n"),
+    );
   }
 
   private async runCommand(input: string): Promise<void> {
@@ -725,6 +919,10 @@ export class ChatApp {
         return this.train();
       case "history":
         return this.showHistory();
+      case "voice":
+        return this.voiceCommand(command.args[0]);
+      case "sing":
+        return this.sing(command.args.join(" "));
       case "exit":
       case "quit":
         return this.exit();
@@ -870,6 +1068,7 @@ export class ChatApp {
 
   private exit(): void {
     clearInterval(this.spinnerTimer);
+    this.stopSpeaking();
     this.clearLive();
     this.out.write(cursor.show + c.gray("Goodbye.") + "\n");
     process.stdin.setRawMode(false);

@@ -11,6 +11,9 @@
 import { createInterface } from "node:readline";
 import { loadBundle, reply } from "../compact/bundle.js";
 import { loadCompactConfig } from "../config/compact-config.js";
+import { loadDotEnv } from "../config/env.js";
+import { loadVoiceConfig } from "../voice/voice.js";
+import { loadVoiceProfiles } from "../profiles/voices.js";
 import { ChatApp } from "../tui/app.js";
 import {
   DEFAULT_SETTINGS,
@@ -19,7 +22,9 @@ import {
   toSamplingOptions,
 } from "../settings/user-settings.js";
 
+loadDotEnv();
 const config = loadCompactConfig();
+const voice = loadVoiceConfig();
 const modelPath = process.argv[2] ?? config.training.output;
 const bundle = loadBundle(modelPath);
 
@@ -28,10 +33,19 @@ const settingsPath = process.env.LCAI_SETTINGS ?? DEFAULT_SETTINGS_PATH;
 const settings = loadSettings(settingsPath, {
   ...DEFAULT_SETTINGS,
   maxTokens: config.generation.maxTokens,
+  voiceProvider: voice.provider,
 });
 
 if (process.stdin.isTTY && process.stdout.isTTY) {
-  new ChatApp({ config, modelPath, bundle, settings, settingsPath }).start();
+  new ChatApp({
+    config,
+    modelPath,
+    bundle,
+    settings,
+    settingsPath,
+    voice,
+    profiles: loadVoiceProfiles(),
+  }).start();
 } else {
   await runPlain();
 }
@@ -42,10 +56,16 @@ async function runPlain(): Promise<void> {
     console.error(`no model at ${modelPath}. run "npm run train" first.`);
     process.exit(1);
   }
+  // Terminals like Git Bash (mintty) are not detected as TTYs, so without
+  // this hint the chat looks frozen. Written to stderr to keep stdout clean.
+  console.error(
+    "Plain mode (no interactive terminal detected). Type a prompt and press Enter; type exit to quit.\n" +
+      "For the full UI, run in PowerShell, cmd, Windows Terminal, or use: winpty npm.cmd run chat",
+  );
   const rl = createInterface({ input: process.stdin });
   for await (const rawLine of rl) {
     const line = rawLine.trim();
-    if (line === "exit" || line === "quit") break;
+    if (/^\/?(exit|quit)$/i.test(line)) break;
     if (line)
       console.log(
         reply(bundle, line, settings.maxTokens, toSamplingOptions(settings)) ||

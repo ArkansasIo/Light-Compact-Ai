@@ -8,6 +8,11 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import type { SamplingOptions } from "../engine/sampling.js";
+import { VOICE_PROVIDERS, type VoiceProviderName } from "../voice/voice.js";
+import {
+  BUILTIN_VOICE_PROFILE_IDS,
+  DEFAULT_VOICE_PROFILE_ID,
+} from "../profiles/voices.js";
 
 export const THEMES = ["teal", "orange", "blue", "purple", "mono"] as const;
 export type Theme = (typeof THEMES)[number];
@@ -29,6 +34,12 @@ export interface UserSettings {
   showStats: boolean;
   /** Accent color of the chat UI. */
   theme: Theme;
+  /** Speak replies aloud in the chat UI. */
+  voice: boolean;
+  /** Text-to-speech service tried first (the other one is the fallback). */
+  voiceProvider: VoiceProviderName;
+  /** Voice identity for speech and singing (src/profiles/voices.ts). */
+  voiceProfile: string;
 }
 
 export type SettingKey = keyof UserSettings;
@@ -68,6 +79,9 @@ export const DEFAULT_SETTINGS: UserSettings = {
   streamDelayMs: 30,
   showStats: true,
   theme: "teal",
+  voice: false,
+  voiceProvider: "elevenlabs",
+  voiceProfile: DEFAULT_VOICE_PROFILE_ID,
 };
 
 export const SETTING_DEFS: SettingDef[] = [
@@ -149,6 +163,29 @@ export const SETTING_DEFS: SettingDef[] = [
     description: "Accent color of the chat UI.",
     choices: THEMES,
   },
+  {
+    kind: "boolean",
+    key: "voice",
+    label: "Speak replies",
+    description:
+      "Read replies aloud with the Aurora voice. Needs an ElevenLabs, OpenAI or Azure Speech key in .env.",
+  },
+  {
+    kind: "choice",
+    key: "voiceProvider",
+    label: "Voice provider",
+    description:
+      "Text-to-speech service tried first. If it fails, the other one is used.",
+    choices: VOICE_PROVIDERS,
+  },
+  {
+    kind: "choice",
+    key: "voiceProfile",
+    label: "Voice profile",
+    description:
+      "Voice identity used for speaking and for /sing (fairytale soprano, warm contralto, ...).",
+    choices: BUILTIN_VOICE_PROFILE_IDS,
+  },
 ];
 
 export const DEFAULT_SETTINGS_PATH = ".lcai/settings.json";
@@ -180,7 +217,7 @@ function coerce(
       return undefined;
     case "choice":
       return typeof value === "string" && def.choices.includes(value)
-        ? (value as Theme)
+        ? (value as UserSettings[SettingKey])
         : undefined;
   }
 }

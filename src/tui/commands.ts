@@ -17,6 +17,16 @@ export const COMMANDS: SlashCommand[] = [
   { name: "tokens", args: "<n>", description: "Set the maximum reply length" },
   { name: "train", description: "Retrain on the corpus and save the model" },
   { name: "history", description: "List prompts from this session" },
+  {
+    name: "sing",
+    args: "<idea>",
+    description: "Compose and sing an original song (Musical mode)",
+  },
+  {
+    name: "voice",
+    args: "[on|off|test]",
+    description: "Speak replies with the Aurora voice",
+  },
   { name: "exit", description: "Quit" },
 ];
 

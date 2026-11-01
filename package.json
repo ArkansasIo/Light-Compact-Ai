@@ -20,7 +20,7 @@
     "LICENSE"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.json && node -e \"console.log('Build succeeded: output in dist/')\"",
     "clean": "node -e \"for (const d of ['dist','models']) require('node:fs').rmSync(d,{recursive:true,force:true})\"",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "format": "prettier --write \"src/**/*.ts\" \"*.json\"",
@@ -29,7 +29,8 @@
     "example": "npm run build && node dist/examples/train-toy.js",
     "start": "npm run build && node dist/server.js",
     "train": "npm run build && node dist/cli/train.js",
-    "chat": "npm run build && node dist/cli/chat.js"
+    "chat": "npm run build && node dist/cli/chat.js",
+    "sing": "npm run build && node dist/cli/sing.js"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
